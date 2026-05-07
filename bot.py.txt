@@ -1,0 +1,101 @@
+import threading
+import sqlite3
+import os
+from flask import Flask, render_template_string
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+
+BOT_TOKEN = "8749997104:AAED5lj6xnArRwQnWehD_VJrLmO0A_6wbV0"
+YOUR_ADMIN_ID = 7530428158
+
+app = Flask(__name__)
+
+# ================= DB =================
+conn = sqlite3.connect("bot.db", check_same_thread=False)
+cursor = conn.cursor()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS users (
+    user_id INTEGER PRIMARY KEY,
+    name TEXT,
+    balance REAL DEFAULT 0,
+    orders INTEGER DEFAULT 0,
+    commission REAL DEFAULT 0.07,
+    banned INTEGER DEFAULT 0
+)
+""")
+conn.commit()
+
+
+# ================= BOT =================
+def get_user(user_id, name=None):
+    cursor.execute("SELECT * FROM users WHERE user_id=?", (user_id,))
+    user = cursor.fetchone()
+
+    if not user:
+        cursor.execute("INSERT INTO users (user_id, name) VALUES (?, ?)", (user_id, name))
+        conn.commit()
+
+        cursor.execute("SELECT * FROM users WHERE user_id=?", (user_id,))
+        user = cursor.fetchone()
+
+    return user
+
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    name = update.effective_user.first_name
+
+    user = get_user(user_id, name)
+
+    keyboard = [
+        [InlineKeyboardButton("📊 Earnings", callback_data="earnings")],
+        [InlineKeyboardButton("💸 Withdraw", callback_data="withdraw")]
+    ]
+
+    await update.message.reply_text("Dashboard", reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+
+    user_id = q.from_user.id
+    user = get_user(user_id)
+
+    if q.data == "earnings":
+        await q.edit_message_text(f"💰 {user[2]}$")
+
+
+# ================= BOT RUN =================
+def run_bot():
+    app_bot = Application.builder().token(BOT_TOKEN).build()
+
+    app_bot.add_handler(CommandHandler("start", start))
+    app_bot.add_handler(CallbackQueryHandler(buttons))
+
+    app_bot.run_polling()
+
+
+# ================= WEB =================
+@app.route("/")
+def home():
+    cursor.execute("SELECT name, balance FROM users")
+    users = cursor.fetchall()
+
+    html = """
+    <h1>Dashboard</h1>
+    {% for u in users %}
+    <p>{{u[0]}} - {{u[1]}}$</p>
+    {% endfor %}
+    """
+
+    return render_template_string(html, users=users)
+
+
+# ================= START BOTH =================
+if __name__ == "__main__":
+    threading.Thread(target=run_bot).start()
+
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
