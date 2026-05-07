@@ -5,7 +5,7 @@ from flask import Flask, render_template_string
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
-BOT_TOKEN = "8749997104:AAED5lj6xnArRwQnWehD_VJrLmO0A_6wbV0"
+BOT_TOKEN = "8749997104:AAFKCz9Qgg6zFNdmwyYTAmtXUc7hNed2zbU"
 YOUR_ADMIN_ID = 7530428158
 
 app = Flask(__name__)
